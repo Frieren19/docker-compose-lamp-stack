@@ -1,0 +1,76 @@
+version: "3.8"
+
+# Services
+services:
+  # Nginx Service
+  nginx:
+    image: nginx:1.21
+    ports:
+      - 8080:80
+    volumes:
+      - ./src:/var/www/php
+      - ./.docker/nginx/conf.d:/etc/nginx/conf.d
+    links:
+      - php
+
+  # PHP Service
+  php:
+    build: ./.docker/php
+    working_dir: /var/www/php
+    volumes:
+      - ./src:/var/www/php
+      - ./.docker/mysql/my.cnf:/etc/mysql/my.cnf
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  # MySQL Service
+  mysql:
+    image: mysql/mysql-server:8.0
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASS}
+      MYSQL_ROOT_HOST: "%"
+      MYSQL_DATABASE: demo
+    volumes:
+      - ./.docker/mysql/my.cnf:/etc/mysql/my.cnf
+      - mysqldata:/var/lib/mysql
+    command: mysqld --sql_mode=""
+    healthcheck:
+      test: mysqladmin ping -h 127.0.0.1 -u root --password=$$MYSQL_ROOT_PASSWORD
+      interval: 5s
+      retries: 10
+
+  # PhpMyAdmin Service  
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:5
+    ports:
+      - 8090:80
+    environment:
+      PMA_HOST: mysql
+      UPLOAD_LIMIT: 128M
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  # WEB Service
+  mini-web:
+    image: sikassep/mini-web:1.0
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_NAME: ${DB_NAME}
+      DB_PREFIX: ${DB_PREFIX}
+      HTTPS: ${HTTPS}
+      WEB_NAME: ${WEB_NAME}
+    container_name: mini-web
+    ports:
+      - 8070:80
+    depends_on:
+      mysql:
+        condition: service_healthy
+  # Volumes
+volumes:
+  mysqldata:
